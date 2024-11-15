@@ -59,10 +59,8 @@ class CameraSensors:
         self.past_img.pop()
         self.past_img.insert(0, array)
 
-        self.camera_img[index] = array
-
     def display_camera_img(self, display):
-        camera = resize(self.camera_img, (4, self.obs_size, self.obs_size, 3)) * 255
+        camera = resize(self.camera_img, (4, self.obs_size, self.obs_size), preserve_range=True)
         camera = camera.astype(np.uint8)
 
         for i in range(4):

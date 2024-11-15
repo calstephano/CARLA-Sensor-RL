@@ -60,7 +60,7 @@ class CarlaEnv(gym.Env):
     self.max_ego_spawn_times = params['max_ego_spawn_times']
     self.display_route = params['display_route']
 
-    # Action and observation spaces
+    # Action space
     self.discrete = params['discrete']
     self.discrete_act = [params['discrete_acc'], params['discrete_steer']] # acc, steer
     self.n_acc = len(self.discrete_act[0])
@@ -72,7 +72,12 @@ class CarlaEnv(gym.Env):
       params['continuous_steer_range'][0]]), np.array([params['continuous_accel_range'][1],
       params['continuous_steer_range'][1]]), dtype=np.float32)  # acc, steer
 
-    self.observation_space = spaces.Box(low=0, high=255, shape=(5, self.obs_size, self.obs_size, 3), dtype=np.float32)
+    # Observation space
+    self.observation_space = spaces.Box(
+      low=0, high=255, 
+      shape=(5, self.obs_size, self.obs_size), 
+      dtype=np.uint8
+    )
 
     # Connect to CARLA server and get world object
     print('Connecting to Carla server...')
@@ -460,13 +465,13 @@ class CarlaEnv(gym.Env):
     birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
     self.display.blit(birdeye_surface, (0, 0))
 
-    img = Image.open("lidar_temp_img.png")
-    self.lidar_img = np.array(img)
-    lidar_arr = np.zeros((1, self.obs_size, self.obs_size, 3))
-    lidar_arr = lidar_arr.astype(np.float32)
-    lidar_arr[0] = resize(self.lidar_img, (self.obs_size, self.obs_size, 3)) * 255
-    lidar_surface = rgb_to_display_surface(lidar_arr[0], self.display_size)
-    self.display.blit(lidar_surface, (self.display_size * 1, 0))
+    # img = Image.open("lidar_temp_img.png")
+    # self.lidar_img = np.array(img)
+    # lidar_arr = np.zeros((1, self.obs_size, self.obs_size, 3))
+    # lidar_arr = lidar_arr.astype(np.float32)
+    # lidar_arr[0] = resize(self.lidar_img, (self.obs_size, self.obs_size, 3)) * 255
+    # lidar_surface = rgb_to_display_surface(lidar_arr[0], self.display_size)
+    # self.display.blit(lidar_surface, (self.display_size * 1, 0))
 
     # Display camera images from get_data
     camera_surfaces = self.camera_sensors.display_camera_img(self.display)
@@ -476,11 +481,11 @@ class CarlaEnv(gym.Env):
 
     obs = {
       'camera':camera_surfaces,
-      'lidar':lidar_arr,
+      # 'lidar':lidar_arr,
       'birdeye':birdeye.astype(np.uint8)
     }
     
-    return np.concatenate((obs['camera'],obs['lidar']))
+    return (obs['camera'])
 
   def _get_reward(self):
     """Calculate the step reward."""
