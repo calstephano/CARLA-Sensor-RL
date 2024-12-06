@@ -66,6 +66,7 @@ class CarlaEnv(gym.Env):
       params['continuous_steer_range'][0]]), np.array([params['continuous_accel_range'][1],
       params['continuous_steer_range'][1]]), dtype=np.float32)  # acc, steer
 
+    # Observation space
     self.observation_space = spaces.Dict({
       'camera': spaces.Box(
         low=0, high=255,
@@ -100,8 +101,8 @@ class CarlaEnv(gym.Env):
     # Initialize sensors
     self.collision_detector = CollisionDetector(self.world)
     self.camera_sensors = CameraSensors(self.world, self.obs_size, self.display_size)
-    self.lidar_sensor = LIDARSensor(self.world)
-    self.radar_sensor = RadarSensor(self.world)
+    # self.lidar_sensor = LIDARSensor(self.world)
+    # self.radar_sensor = RadarSensor(self.world)
 
     # Set fixed simulation step for synchronous mode
     self.settings = self.world.get_settings()
@@ -121,7 +122,7 @@ class CarlaEnv(gym.Env):
     # Delete sensors, vehicles and walkers
     clear_all_actors(self.world, [
         'sensor.other.collision', 'sensor.camera.rgb',
-        'sensor.other.radar', 'sensor.lidar.ray_cast',
+        # 'sensor.other.radar', 'sensor.lidar.ray_cast',
         'vehicle.*', 'controller.ai.walker', 'walker.*'
     ])
 
@@ -133,7 +134,7 @@ class CarlaEnv(gym.Env):
 
     # Spawn surrounding vehicles
     random.shuffle(self.vehicle_spawn_points)
-    vehicles_spawned = spawn_vehicles(self.world, self.vehicle_spawn_points, self.number_of_vehicles)
+    vehicles_spawned = spawn_random_vehicles(self.world, self.vehicle_spawn_points, self.number_of_vehicles)
 
     walkers_spawned = spawn_walkers(self.world, self.walker_spawn_points, self.number_of_walkers)
     print(f"Successfully spawned {walkers_spawned} out of {self.number_of_walkers} walkers.")
@@ -149,23 +150,23 @@ class CarlaEnv(gym.Env):
     self.walker_polygons.append(walker_poly_dict)
 
     # Spawn the ego vehicle
-    ego_spawn_times = 0
-    while True:
-      if ego_spawn_times > self.max_ego_spawn_times:
-        self.reset()
+    ego_vehicle = spawn_ego_vehicle(
+      self.world, self.vehicle_spawn_points, self.ego_bp, 
+      self.vehicle_polygons, self.max_ego_spawn_times
+    )
 
-      transform = random.choice(self.vehicle_spawn_points)
+    if not ego_vehicle:
+        print("Failed to spawn ego vehicle. Resetting environment.")
+        return self.reset()
 
-      if self._try_spawn_ego_vehicle_at(transform):
-        break
-      else:
-        ego_spawn_times += 1
-        time.sleep(0.1)
+    self.ego = ego_vehicle
 
     # Spawn and attach sensors
     self.collision_detector.spawn_and_attach(self.ego)
     self.collision_detector.clear_collision_history()
     self.camera_sensors.spawn_and_attach(self.ego)
+    # self.lidar_sensor.spawn_and_attach(self.ego)
+    # self.radar_sensor.spawn_and_attach(self.ego)
 
     # Update timesteps
     self.time_step=0
@@ -270,35 +271,6 @@ class CarlaEnv(gym.Env):
     self.settings.synchronous_mode = synchronous
     self.world.apply_settings(self.settings)
 
-  def _try_spawn_ego_vehicle_at(self, transform):
-    """Try to spawn the ego vehicle at specific transform.
-    Args:
-      transform: the carla transform object.
-    Returns:
-      Bool indicating whether the spawn is successful.
-    """
-    vehicle = None
-    # Check if ego position overlaps with surrounding vehicles
-    overlap = False
-    for idx, poly in self.vehicle_polygons[-1].items():
-      poly_center = np.mean(poly, axis=0)
-      ego_center = np.array([transform.location.x, transform.location.y])
-      dis = np.linalg.norm(poly_center - ego_center)
-      if dis > 8:
-        continue
-      else:
-        overlap = True
-        break
-
-    if not overlap:
-      vehicle = self.world.try_spawn_actor(self.ego_bp, transform)
-
-    if vehicle is not None:
-      self.ego=vehicle
-      return True
-
-    return False
-
   def _get_obs(self):
     """Get the observations."""
     # Birdeye rendering
@@ -345,13 +317,12 @@ class CarlaEnv(gym.Env):
     return obs
 
   def _get_reward(self, step):
-    """Calculate the reward with improved waypoint progress logic using dot product."""
+    """Calculate the reward."""
     # Extract state variables
     obs = self._get_obs()
     lateral_dis, delta_yaw, speed, vehicle_front = obs['state']
 
     # Reward components
-    lane_width = 2.0
     max_delta_yaw = np.pi / 4
 
     # Dynamically retrieve lane width from the map
@@ -359,22 +330,30 @@ class CarlaEnv(gym.Env):
     ego_waypoint = self.world.get_map().get_waypoint(ego_location)
     lane_width = ego_waypoint.lane_width if ego_waypoint else 2.0  # Default to 2.0 if unavailable
 
-    # Reward components
-    r_lane = -abs(lateral_dis / lane_width)  # Penalize deviation from lane center
-    r_heading = -abs(delta_yaw / (np.pi / 4))  # Penalize large heading errors
+    # **Positive Rewards for Lane-Keeping and Heading Alignment**
+    r_lane = 10 - abs(lateral_dis / lane_width)  # Positive reward for staying in the lane center
+    r_heading = 5 - abs(delta_yaw / (np.pi / 4))  # Positive reward for small heading errors
+
+    # **Penalty for Speed Deviations**
     r_speed = -abs((speed - self.desired_speed) / self.desired_speed)  # Penalize speed deviations
-    r_collision = -50 if self.collision_detector.get_latest_collision_intensity() else 0  # Heavy collision penalty
-    # Penalize abrupt yaw changes
-    r_smooth_yaw = -abs(delta_yaw - getattr(self, 'previous_yaw', delta_yaw)) / max_delta_yaw
+    r_collision = -1 if self.collision_detector.get_latest_collision_intensity() else 0  # Heavy collision penalty
+    
+    # **Smooth Yaw Reward**
+    r_smooth_yaw = 2 - abs(delta_yaw - getattr(self, 'previous_yaw', delta_yaw)) / max_delta_yaw  # Reward for smooth yaw changes
     self.previous_yaw = delta_yaw
 
-    # Penalize lateral acceleration
+    # **Penalty for Lateral Acceleration**
     current_steer = self.ego.get_control().steer
     v = self.ego.get_velocity()
     lspeed_lon = np.dot([v.x, v.y], [np.cos(delta_yaw), np.sin(delta_yaw)])
     r_lateral_acc = -abs(current_steer) * (lspeed_lon**2 / self.desired_speed**2)
 
-    # Reward for waypoint progress
+    # **Smooth Steering Penalty**
+    previous_steer = getattr(self, 'previous_steer', current_steer)
+    r_smooth_steering = -abs(current_steer - previous_steer)  # Penalize abrupt steering
+    self.previous_steer = current_steer
+
+    # **Progress Reward**
     progress_reward = 0
     if self.waypoints:
         ego_x, ego_y = get_pos(self.ego)
@@ -391,20 +370,21 @@ class CarlaEnv(gym.Env):
             progress_reward += 10
             self.waypoints.pop(0)
 
-    # Combine rewards
+    # **Combine Rewards**
     total_reward = (
-        10 * r_lane +
-        5 * r_heading +
-        2 * r_speed +
-        r_collision +
-        2 * r_smooth_yaw +
-        # 2 * r_smooth_steering +
-        0.5 * r_lateral_acc +
-        progress_reward
+        r_lane +                     # Positive reward for lane center alignment
+        r_heading +                  # Positive reward for correct heading
+        2 * r_speed +                # Speed penalty remains
+        50 * r_collision +           # Collision penalty
+        r_smooth_yaw +               # Positive reward for smooth yaw
+        1 * r_smooth_steering +      # Steering penalty
+        0.5 * r_lateral_acc +        # Lateral acceleration penalty
+        progress_reward              # Progress towards waypoints
     )
+
     total_reward = np.clip(total_reward, -100, 100)
 
-    # Log rewards
+    # **Log Rewards**
     if self.writer:
         reward_components = {
             "lane_reward": r_lane,
