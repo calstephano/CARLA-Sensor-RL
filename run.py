@@ -108,6 +108,10 @@ def test_model(model, env, steps=100):
   for step in range(steps):
     action, _states = model.predict(obs)
     obs, rewards, terminated, truncated, info = env.step(action)
+
+    # Visualization step
+    env.visualize()
+    
     if terminated or truncated:
       print("Episode finished.")
       break
