@@ -13,7 +13,7 @@ def main():
   # Define environment parameters
   params = {
     'number_of_vehicles': 1,
-    'number_of_walkers': 5,
+    'number_of_walkers': 3,
     'display_size': 256,                        # Screen size
     'max_past_step': 1,                         # The number of past steps to draw
     'dt': 0.1,                                  # Time interval between two frames
@@ -109,9 +109,6 @@ def test_model(model, env, steps=100):
     action, _states = model.predict(obs)
     obs, rewards, terminated, truncated, info = env.step(action)
 
-    # Visualization step
-    env.visualize()
-    
     if terminated or truncated:
       print("Episode finished.")
       break

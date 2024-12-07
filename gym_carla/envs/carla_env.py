@@ -265,6 +265,35 @@ class CarlaEnv(gym.Env):
     }
     self.birdeye_render = BirdeyeRender(self.world, birdeye_params)
 
+  def _get_birdeye(self):
+      """Generate bird's-eye view rendering."""
+      # Set up polygons and waypoints for rendering
+      self.birdeye_render.vehicle_polygons = self.vehicle_polygons
+      #self.birdeye_render.walker_polygons = self.walker_polygons
+      self.birdeye_render.waypoints = self.waypoints
+
+      # Birdeye view with roadmap and actors
+      birdeye_render_types = ['roadmap', 'actors']
+      if self.display_route:
+          birdeye_render_types.append('waypoints')
+      self.birdeye_render.render(self.display, birdeye_render_types)
+      birdeye = pygame.surfarray.array3d(self.display)
+      birdeye = birdeye[0:self.display_size, :, :]
+      birdeye = display_to_rgb(birdeye, self.obs_size)
+
+      return birdeye
+
+  def visualize(self):
+      # Render bird's-eye view
+      birdeye = self._get_birdeye()
+      birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
+      self.display.blit(birdeye_surface, (0, 0))
+
+      # Render camera view
+      self.camera_sensors.display_camera_img(self.display)
+      pygame.display.flip()
+
+
   def _set_synchronous_mode(self, synchronous = True):
     """Set whether to use the synchronous mode.
     """
@@ -273,6 +302,9 @@ class CarlaEnv(gym.Env):
 
   def _get_obs(self):
     """Get the observations."""
+    # Display
+    self.visualize()
+    
     # State observation
     ego_trans = self.ego.get_transform()
     ego_x = ego_trans.location.x
@@ -397,31 +429,3 @@ class CarlaEnv(gym.Env):
       'vehicle_front': self.vehicle_front
     }
     return info
-
-def _get_birdeye(self):
-    """Generate bird's-eye view rendering."""
-    # Set up polygons and waypoints for rendering
-    self.birdeye_render.vehicle_polygons = self.vehicle_polygons
-    #self.birdeye_render.walker_polygons = self.walker_polygons
-    self.birdeye_render.waypoints = self.waypoints
-
-    # Birdeye view with roadmap and actors
-    birdeye_render_types = ['roadmap', 'actors']
-    if self.display_route:
-        birdeye_render_types.append('waypoints')
-    self.birdeye_render.render(self.display, birdeye_render_types)
-    birdeye = pygame.surfarray.array3d(self.display)
-    birdeye = birdeye[0:self.display_size, :, :]
-    birdeye = display_to_rgb(birdeye, self.obs_size)
-
-    return birdeye
-
-def visualize(self):
-    # Render bird's-eye view
-    birdeye = self._get_birdeye()
-    birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
-    self.display.blit(birdeye_surface, (0, 0))
-
-    # Render camera view
-    self.camera_sensors.display_camera_img(self.display)
-    pygame.display.flip()
