@@ -300,7 +300,6 @@ class CarlaEnv(gym.Env):
     obs = self._get_obs()
     lateral_dis, delta_yaw, speed, vehicle_front = obs['state']
 
-    # Reward components
     max_delta_yaw = np.pi / 4
 
     # Dynamically retrieve lane width from the map
@@ -308,30 +307,22 @@ class CarlaEnv(gym.Env):
     ego_waypoint = self.world.get_map().get_waypoint(ego_location)
     lane_width = ego_waypoint.lane_width if ego_waypoint else 2.0  # Default to 2.0 if unavailable
 
-    # **Positive Rewards for Lane-Keeping and Heading Alignment**
-    r_lane = 10 - abs(lateral_dis / lane_width)  # Positive reward for staying in the lane center
-    r_heading = 5 - abs(delta_yaw / (np.pi / 4))  # Positive reward for small heading errors
-
-    # **Penalty for Speed Deviations**
+    # Reward components
+    r_lane = -abs(lateral_dis / lane_width)  # Penalize deviation from lane center
+    r_heading = -abs(delta_yaw / (np.pi / 4))  # Penalize large heading errors
     r_speed = -abs((speed - self.desired_speed) / self.desired_speed)  # Penalize speed deviations
-    r_collision = -1 if self.collision_detector.get_latest_collision_intensity() else 0  # Heavy collision penalty
-    
-    # **Smooth Yaw Reward**
-    r_smooth_yaw = 2 - abs(delta_yaw - getattr(self, 'previous_yaw', delta_yaw)) / max_delta_yaw  # Reward for smooth yaw changes
+    r_collision = -50 if self.collision_detector.get_latest_collision_intensity() else 0  # Heavy collision penalty
+    # Penalize abrupt yaw changes
+    r_smooth_yaw = -abs(delta_yaw - getattr(self, 'previous_yaw', delta_yaw)) / max_delta_yaw
     self.previous_yaw = delta_yaw
 
-    # **Penalty for Lateral Acceleration**
+    # Penalize lateral acceleration
     current_steer = self.ego.get_control().steer
     v = self.ego.get_velocity()
     lspeed_lon = np.dot([v.x, v.y], [np.cos(delta_yaw), np.sin(delta_yaw)])
     r_lateral_acc = -abs(current_steer) * (lspeed_lon**2 / self.desired_speed**2)
 
-    # **Smooth Steering Penalty**
-    previous_steer = getattr(self, 'previous_steer', current_steer)
-    r_smooth_steering = -abs(current_steer - previous_steer)  # Penalize abrupt steering
-    self.previous_steer = current_steer
-
-    # **Progress Reward**
+    # Reward for waypoint progress
     progress_reward = 0
     if self.waypoints:
         ego_x, ego_y = get_pos(self.ego)
@@ -348,21 +339,20 @@ class CarlaEnv(gym.Env):
             progress_reward += 10
             self.waypoints.pop(0)
 
-    # **Combine Rewards**
+    # Combine rewards
     total_reward = (
-        r_lane +                     # Positive reward for lane center alignment
-        r_heading +                  # Positive reward for correct heading
-        2 * r_speed +                # Speed penalty remains
-        50 * r_collision +           # Collision penalty
-        r_smooth_yaw +               # Positive reward for smooth yaw
-        1 * r_smooth_steering +      # Steering penalty
-        0.5 * r_lateral_acc +        # Lateral acceleration penalty
-        progress_reward              # Progress towards waypoints
+        10 * r_lane +
+        5 * r_heading +
+        2 * r_speed +
+        r_collision +
+        2 * r_smooth_yaw +
+        # 2 * r_smooth_steering +
+        0.5 * r_lateral_acc +
+        progress_reward
     )
-
     total_reward = np.clip(total_reward, -100, 100)
 
-    # **Log Rewards**
+    # Log rewards
     if self.writer:
         reward_components = {
             "lane_reward": r_lane,
