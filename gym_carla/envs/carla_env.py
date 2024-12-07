@@ -209,6 +209,9 @@ class CarlaEnv(gym.Env):
     # Tick the world
     self.world.tick()
 
+    # Display
+    self.visualize()
+
     # Append actors polygon list
     vehicle_poly_dict = get_actor_polygons(self.world, 'vehicle.*')
     self.vehicle_polygons.append(vehicle_poly_dict)
@@ -269,7 +272,7 @@ class CarlaEnv(gym.Env):
       """Generate bird's-eye view rendering."""
       # Set up polygons and waypoints for rendering
       self.birdeye_render.vehicle_polygons = self.vehicle_polygons
-      #self.birdeye_render.walker_polygons = self.walker_polygons
+      self.birdeye_render.walker_polygons = self.walker_polygons
       self.birdeye_render.waypoints = self.waypoints
 
       # Birdeye view with roadmap and actors
@@ -293,7 +296,6 @@ class CarlaEnv(gym.Env):
       self.camera_sensors.display_camera_img(self.display)
       pygame.display.flip()
 
-
   def _set_synchronous_mode(self, synchronous = True):
     """Set whether to use the synchronous mode.
     """
@@ -302,8 +304,6 @@ class CarlaEnv(gym.Env):
 
   def _get_obs(self):
     """Get the observations."""
-    # Display
-    self.visualize()
     
     # State observation
     ego_trans = self.ego.get_transform()
