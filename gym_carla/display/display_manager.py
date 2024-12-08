@@ -1,8 +1,12 @@
 import pygame
 from render import *
 from gym_carla.display import *
+import gymnasium as gym
+import numpy as np
+from stable_baselines3.common.logger import Video
+import os
 
-class DisplayManager:
+class PygameManager:
   def __init__(self, world, display_size, obs_range, d_behind, display_route):
     self.display_size = display_size
     self.obs_range = obs_range
@@ -57,3 +61,50 @@ class DisplayManager:
 
     # Display both
     pygame.display.flip()
+
+
+class VideoWrapper(gym.Env):
+  """
+  Wrapper for recording video during simulation.
+  Captures frames from the environment and saves them as a video.
+  """
+  def __init__(self, env, video_dir="videos", fps=30):
+    """
+    Args:
+        env (gym.Env): The environment to wrap.
+        video_dir (str): Directory where videos will be saved.
+        fps (int): Frames per second for the video recording.
+    """
+    self.env = env
+    self.video_dir = video_dir
+    self.fps = fps
+    self.frames = []
+
+  def reset(self):
+    """
+    Reset the environment and initialize frame storage.
+    """
+    obs = self.env.reset()
+    self.frames = []
+    return obs
+
+  def step(self, action):
+    """
+    Take an action in the environment and capture the frame.
+    """
+    obs, reward, terminated, truncated, info = self.env.step(action)
+
+    frame = self.env.render(mode="rgb_array")
+    self.frames.append(frame)
+
+    return obs, reward, terminated, truncated, info
+
+  def close(self):
+    """
+    Save the frames as a video when the episode finishes.
+    """
+    video = Video(frames=np.array(self.frames), fps=self.fps)
+    os.makedirs(self.video_dir, exist_ok=True)
+    video.save(f"{self.video_dir}/episode_{np.random.randint(10000)}.mp4")
+    self.env.close()
+

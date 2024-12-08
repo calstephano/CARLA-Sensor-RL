@@ -92,9 +92,8 @@ class CarlaEnv(gym.Env):
     self.reset_step = 0
     self.total_step = 0
 
-    # Initialize display manager
-    self.display_manager = DisplayManager(self.world, self.display_size, self.d_behind, self.display_route)
-
+    # Initialize Pygame display
+    self.display_manager = PygameManager(self.world, self.display_size, self.d_behind, self.display_route)
 
   def reset(self, seed = None, options = None):
     # Disable sync mode
