@@ -13,7 +13,6 @@ from PIL import Image
 import gymnasium as gym
 from gymnasium import spaces
 import carla
-from gymnasium.utils import seeding
 
 # Local module imports
 from gym_carla.envs.route_planner import *
@@ -318,7 +317,7 @@ class CarlaEnv(gym.Env):
             "total_reward": total_reward
         }
         for key, value in reward_components.items():
-            self.writer.add_scalar(f"Reward/{key}", value, self.total_step)
+            self.writer.add_scalar(f"rewards/{key}", value, self.total_step)
 
     return total_reward, reward_components
 
@@ -369,23 +368,3 @@ class CarlaEnv(gym.Env):
 
     # Remove objects
     self._reset_environment_objects()
-
-
-def set_synchronous_mode(world, synchronous=True, fixed_delta_seconds=None):
-  """
-  Set whether to use the synchronous mode in the CARLA world.
-
-  Args:
-    world (carla.World): The CARLA simulation world.
-    synchronous (bool): Whether to enable synchronous mode (default: True).
-    fixed_delta_seconds (float, optional): Fixed time step for the simulation (default: None).
-  """
-  settings = world.get_settings()
-  settings.synchronous_mode = synchronous
-  if fixed_delta_seconds is not None:
-    settings.fixed_delta_seconds = fixed_delta_seconds
-  world.apply_settings(settings)
-
-def seed(self, seed=None):
-  self.np_random, seed = seeding.np_random(seed)
-  return [seed]

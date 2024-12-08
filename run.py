@@ -120,10 +120,10 @@ def test_model(model, env, writer, steps=100, test_episode=0):
     cumulative_reward += reward
 
     if terminated or truncated:
-        print(f"Episode {test_episode} finished after {step + 1} steps with reward {cumulative_reward}.")
-        writer.add_scalar("test/cumulative reward", cumulative_reward, test_episode)
-        writer.add_scalar("test/episode Length", step + 1, test_episode)
-        break
+      print(f"Episode {test_episode} finished after {step + 1} steps with reward {cumulative_reward}.")
+      writer.add_scalar("test/cumulative reward", cumulative_reward, test_episode)
+      writer.add_scalar("test/episode length", step + 1, test_episode)
+      break
   print("Testing finished.")
 
 if __name__ == '__main__':
