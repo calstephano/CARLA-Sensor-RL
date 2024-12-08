@@ -34,12 +34,14 @@ def try_spawn_ego_vehicle_at(world, transform, vehicle_polygons, ego_vehicle_fil
   for poly in vehicle_polygons[-1].values():
     poly_center = np.mean(poly, axis=0)
     ego_center = np.array([transform.location.x, transform.location.y])
-    if np.linalg.norm(poly_center - ego_center) < 8:
-        return None  # Overlap detected, spawn failed
 
-  # Try to spawn the ego vehicle
+    # Overlap detected, spawn failed
+    if np.linalg.norm(poly_center - ego_center) < 8:
+        return None  
+
+  # Spawn successful
   vehicle = world.try_spawn_actor(blueprint, transform)
-  return vehicle  # Return the vehicle if successfully spawned, or None
+  return vehicle
 
 
 def spawn_ego_vehicle(world, vehicle_spawn_points, vehicle_polygons, max_ego_spawn_times, ego_vehicle_filter='vehicle.lincoln*'):

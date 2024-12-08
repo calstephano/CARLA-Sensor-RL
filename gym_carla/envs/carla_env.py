@@ -1,8 +1,3 @@
-# This file is modified from <https://github.com/cjy1992/gym-carla.git>:
-# Copyright (c) 2019: Jianyu Chen (jianyuchen@berkeley.edu)
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
 from __future__ import division
 
 import sys
@@ -17,14 +12,12 @@ from PIL import Image
 
 import gymnasium as gym
 from gymnasium import spaces
-from gymnasium.utils import seeding
 import carla
+from gymnasium.utils import seeding
 
 # Local module imports
-from gym_carla.envs.route_planner import RoutePlanner
-from gym_carla.envs.misc import *
-from gym_carla.envs.actor_utils import *
-
+from gym_carla.envs.route_planner import *
+from gym_carla.envs.utils import *
 from gym_carla.display import *
 from gym_carla.primary_actors import *
 from gym_carla.sensors import *
@@ -111,19 +104,16 @@ class CarlaEnv(gym.Env):
     # Reset environment objects
     self._reset_environment_objects()
 
-    # Spawn surrounding vehicles
+    # Spawn surrounding vehicles and walkers
     random.shuffle(self.vehicle_spawn_points)
     vehicles_spawned = spawn_random_vehicles(self.world, self.vehicle_spawn_points, self.number_of_vehicles)
-
     walkers_spawned = spawn_walkers(self.world, self.walker_spawn_points, self.number_of_walkers)
     print(f"Successfully spawned {walkers_spawned} out of {self.number_of_walkers} walkers.")
 
-    # Get vehicle polygon list
+    # Get polygon lists of surronding vehicles and walkers
     self.vehicle_polygons = []
     vehicle_poly_dict = get_actor_polygons(self.world, 'vehicle.*')
     self.vehicle_polygons.append(vehicle_poly_dict)
-
-    # Get walker polygon list
     self.walker_polygons = []
     walker_poly_dict = get_actor_polygons(self.world, 'walker.*')
     self.walker_polygons.append(walker_poly_dict)
@@ -134,8 +124,8 @@ class CarlaEnv(gym.Env):
       self.max_ego_spawn_times, self.ego_vehicle_filter, 
     )
     if not ego_vehicle:
-        print("Failed to spawn ego vehicle. Resetting environment.")
-        return self.reset()
+      print("Failed to spawn ego vehicle. Resetting environment.")
+      return self.reset()
     self.ego = ego_vehicle
 
     # Spawn and attach sensors
@@ -220,10 +210,6 @@ class CarlaEnv(gym.Env):
     info["reward_components"] = reward_components  # Include reward components for debugging
 
     return (self._get_obs(), total_reward, self._terminal(), truncated, info)
-
-  def seed(self, seed=None):
-    self.np_random, seed = seeding.np_random(seed)
-    return [seed]
 
   def _get_obs(self):
     """Get the observations."""
@@ -383,3 +369,23 @@ class CarlaEnv(gym.Env):
 
     # Remove objects
     self._reset_environment_objects()
+
+
+def set_synchronous_mode(world, synchronous=True, fixed_delta_seconds=None):
+  """
+  Set whether to use the synchronous mode in the CARLA world.
+
+  Args:
+    world (carla.World): The CARLA simulation world.
+    synchronous (bool): Whether to enable synchronous mode (default: True).
+    fixed_delta_seconds (float, optional): Fixed time step for the simulation (default: None).
+  """
+  settings = world.get_settings()
+  settings.synchronous_mode = synchronous
+  if fixed_delta_seconds is not None:
+    settings.fixed_delta_seconds = fixed_delta_seconds
+  world.apply_settings(settings)
+
+def seed(self, seed=None):
+  self.np_random, seed = seeding.np_random(seed)
+  return [seed]
