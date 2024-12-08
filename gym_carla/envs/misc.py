@@ -279,12 +279,18 @@ def grayscale_to_display_surface(gray, display_size):
   # Render through rgb_to_display_surface function
   return rgb_to_display_surface(rgb, display_size)
 
-  
-def stop_sensors(self):
-  """Stop all sensors."""
-  if hasattr(self, 'sensors') and isinstance(self.sensors, list):
-    for sensor in self.sensors:
-      if hasattr(sensor, 'stop') and callable(sensor.stop):
-        print(f"Stopping sensor: {sensor}")
-        sensor.stop()
-  self.sensors = []
+
+def set_synchronous_mode(world, synchronous=True, fixed_delta_seconds=None):
+    """
+    Set whether to use the synchronous mode in the CARLA world.
+
+    Args:
+        world (carla.World): The CARLA simulation world.
+        synchronous (bool): Whether to enable synchronous mode (default: True).
+        fixed_delta_seconds (float, optional): Fixed time step for the simulation (default: None).
+    """
+    settings = world.get_settings()
+    settings.synchronous_mode = synchronous
+    if fixed_delta_seconds is not None:
+        settings.fixed_delta_seconds = fixed_delta_seconds
+    world.apply_settings(settings)
