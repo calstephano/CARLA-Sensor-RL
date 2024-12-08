@@ -5,7 +5,7 @@
 
 import os
 import gymnasium as gym
-from gymnasium.wrappers import Monitor
+from gymnasium import Monitor
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3 import DQN, PPO, SAC
 
