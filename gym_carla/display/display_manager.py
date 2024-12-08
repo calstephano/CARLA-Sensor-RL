@@ -29,7 +29,7 @@ class DisplayManager:
     self.birdeye_render = BirdeyeRender(self.world, birdeye_params)
 
   def _get_birdeye(self):
-    """Generate and preprocess bird's-eye view rendering.."""
+    """Retrieve and format the bird's-eye view data into RGB"""
     self.birdeye_render.vehicle_polygons = self.vehicle_polygons
     self.birdeye_render.walker_polygons = self.walker_polygons
     self.birdeye_render.waypoints = self.waypoints

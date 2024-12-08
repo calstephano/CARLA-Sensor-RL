@@ -3,7 +3,6 @@ import threading
 import pygame
 import numpy as np
 from skimage.transform import resize
-from PIL import Image
 from gym_carla.display import *
 
 class CameraSensors:
