@@ -17,7 +17,7 @@ import carla
 # Local module imports
 from gym_carla.envs.route_planner import *
 from gym_carla.envs.utils import *
-from gym_carla.display import *
+from gym_carla.display import PygameManager
 from gym_carla.primary_actors import *
 from gym_carla.sensors import *
 
