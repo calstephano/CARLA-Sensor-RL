@@ -39,18 +39,18 @@ def main():
   # Ask the user to select the training algorithm
   print("\nSelect the training algorithm:")
   print("1. Deep Q-Network (DQN)")
-  print("2. Soft Actor-Critic (SAC)")
-  print("3. Proximal Policy Optimization (PPO)")
+  print("2. Proximal Policy Optimization (PPO)")
+  print("3. Soft Actor-Critic (SAC)")
   model_input = input("Enter the model number (1, 2, or 3): ").strip()
 
   if model_input == "1":
     model_type = 'DQN'
     params['discrete'] = True
   elif model_input == "2":
-    model_type = 'SAC'
+    model_type = 'PPO'
     params['discrete'] = False
   elif model_input == "3":
-    model_type = 'PPO'
+    model_type = 'SAC'
     params['discrete'] = False
   else:
     print("Invalid input. Defaulting to DQN.")
@@ -96,10 +96,10 @@ def select_model(env, model_type, **kwargs):
       buffer_size=50_000,
       **kwargs
     )
-  elif model_type == 'SAC':
-    return SAC("MultiInputPolicy", env, buffer_size=50_000, **kwargs)
   elif model_type == 'PPO':
     return PPO("MultiInputPolicy", env, **kwargs)
+  elif model_type == 'SAC':
+    return SAC("MultiInputPolicy", env, buffer_size=50_000, **kwargs)
   else:
     raise ValueError(f"Unsupported model type: {model_type}")
 
