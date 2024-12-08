@@ -68,11 +68,15 @@ def main():
   reward_log_dir = f"{base_log_dir}/reward_logs_{trial_number}"
   os.makedirs(reward_log_dir, exist_ok=True)
 
+  # Create a video directory using the same trial number
+  playback_dir = f"{base_log_dir}/playback_{trial_number}"
+  os.makedirs(playback_dir, exist_ok=True)
+
   # Initialize the TensorBoard writer for rewards
   writer = SummaryWriter(log_dir=reward_log_dir)
 
   # Initialize the environment
-  env = gym.make('carla-v0', params=params, writer=writer)
+  env = gym.make('carla-v0', params=params, writer=writer, playback_dir=playback_dir)
 
   # Initialize the model
   model = select_model(env, model_type, verbose=1, tensorboard_log=base_log_dir)

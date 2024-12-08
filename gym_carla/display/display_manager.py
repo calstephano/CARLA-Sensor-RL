@@ -66,3 +66,58 @@ class PygameManager:
 
     # Display both
     pygame.display.flip()
+
+
+class VideoWrapper(gym.Env):
+  """
+  Wrapper for recording video during simulation.
+  Captures frames from the environment and saves them as a video.
+  """
+  def __init__(self, env, playback_dir, fps=30):
+    """
+    Args:
+        env (gym.Env): The environment to wrap.
+        playback_dir (str): Directory where videos will be saved.
+        fps (int): Frames per second for the video recording.
+    """
+    self.env = env
+    self.playback_dir = playback_dir
+    self.fps = fps
+    self.frames = []
+
+  def reset(self):
+    """
+    Reset the environment and initialize frame storage.
+    """
+    obs = self.env.reset()
+    self.frames = []
+    return obs
+
+  def step(self, action):
+    """
+    Take an action in the environment and capture the frame.
+    """
+    obs, reward, terminated, truncated, info = self.env.step(action)
+
+    frame = self.env.render(mode="rgb_array")
+    self.frames.append(frame)
+
+    return obs, reward, terminated, truncated, info
+
+  def close(self):
+    """
+    Save the frames as a video when the episode finishes.
+    """
+    # Increment the episode counter
+    self.episode_counter += 1
+    
+    # Create a new directory for each training session if needed
+    video_folder = os.path.join(self.playback_dir, f"training_session_{self.episode_counter}")
+    os.makedirs(video_folder, exist_ok=True)
+
+    # Save the frames as a video, naming each episode sequentially
+    video = Video(frames=np.array(self.frames), fps=self.fps)
+    video.save(f"{video_folder}/episode_{self.episode_counter:04d}.mp4")
+
+    # Clean up the environment
+    self.env.close()

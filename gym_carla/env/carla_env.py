@@ -24,7 +24,7 @@ from gym_carla.sensors import *
 class CarlaEnv(gym.Env):
   """An OpenAI gym wrapper for CARLA simulator."""
 
-  def __init__(self, params, writer=None):
+  def __init__(self, params, writer=None, playback_dir=None):
     ...
     self.total_step = 0
     self.display_size = params['display_size']
@@ -95,6 +95,9 @@ class CarlaEnv(gym.Env):
     # Initialize Pygame display
     self.pygame_manager = PygameManager(self.world, self.display_size, self.obs_range, self.d_behind, self.display_route)
     self.pygame_manager.camera_sensors = self.camera_sensors
+    
+    # Initialize video playback
+    self.video_playback = VideoWrapper(self, playback_dir=playback_dir, fps=30)
 
   def reset(self, seed = None, options = None):
     # Disable sync mode
