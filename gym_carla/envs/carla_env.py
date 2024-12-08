@@ -68,14 +68,14 @@ class CarlaEnv(gym.Env):
 
     # Observation space
     self.observation_space = spaces.Dict({
-      'camera': spaces.Box(
-        low=0, high=255,
-        shape=(4, self.obs_size, self.obs_size),
-        dtype=np.uint8),
       'state': spaces.Box(
         low=-np.inf, high=np.inf,
         shape=(4,),
         dtype=np.float32),
+      'camera': spaces.Box(
+        low=0, high=255,
+        shape=(4, self.obs_size, self.obs_size),
+        dtype=np.uint8),
     })
 
     # Connect to CARLA server and get world object
@@ -151,7 +151,7 @@ class CarlaEnv(gym.Env):
 
     # Spawn the ego vehicle
     ego_vehicle = spawn_ego_vehicle(
-      self.world, self.vehicle_spawn_points, self.ego_bp, 
+      self.world, self.vehicle_spawn_points, self.ego_bp,
       self.vehicle_polygons, self.max_ego_spawn_times
     )
 
@@ -304,7 +304,7 @@ class CarlaEnv(gym.Env):
 
   def _get_obs(self):
     """Get the observations."""
-    
+
     # State observation
     ego_trans = self.ego.get_transform()
     ego_x = ego_trans.location.x
@@ -319,9 +319,10 @@ class CarlaEnv(gym.Env):
 
     # Retrieve optimized camera images for RL
     camera_images = self.camera_sensors.camera_img
+
     obs = {
+      'state':state,
       'camera':camera_images,
-      'state':state
     }
 
     return obs
@@ -349,7 +350,7 @@ class CarlaEnv(gym.Env):
         r_speed -= 1                                                   # Penalize high speed when off-center
 
     r_collision = -1 if self.collision_detector.get_latest_collision_intensity() else 0  # Heavy collision penalty
-    
+
     # Penalize abrupt yaw changes
     r_smooth_yaw = -abs(delta_yaw - getattr(self, 'previous_yaw', delta_yaw)) / max_delta_yaw
     self.previous_yaw = delta_yaw
