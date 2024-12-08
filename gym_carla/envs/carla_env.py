@@ -119,18 +119,8 @@ class CarlaEnv(gym.Env):
     # Disable sync mode
     self._set_synchronous_mode(False)
 
-    # Delete sensors, vehicles and walkers
-    clear_all_actors(self.world, [
-        'sensor.other.collision', 'sensor.camera.rgb',
-        # 'sensor.other.radar', 'sensor.lidar.ray_cast',
-        'vehicle.*', 'controller.ai.walker', 'walker.*'
-    ])
-
-    # Clear sensor objects
-    self.collision_detector.collision_detector = None
-    self.camera_sensors.camera_sensors = None
-    #self.lidar_sensor.lidar_sensor = None
-    #self.radar_sensor.radar_sensor = None
+    # Reset environment objects
+    self._reset_environment_objects()
 
     # Spawn surrounding vehicles
     random.shuffle(self.vehicle_spawn_points)
@@ -210,7 +200,7 @@ class CarlaEnv(gym.Env):
     self.world.tick()
 
     # Display
-    self.visualize()
+    self._visualize()
 
     # Append actors polygon list
     vehicle_poly_dict = get_actor_polygons(self.world, 'vehicle.*')
@@ -286,7 +276,7 @@ class CarlaEnv(gym.Env):
 
       return birdeye
 
-  def visualize(self):
+  def _visualize(self):
       # Render bird's-eye view
       birdeye = self._get_birdeye()
       birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
@@ -442,3 +432,25 @@ class CarlaEnv(gym.Env):
       'vehicle_front': self.vehicle_front
     }
     return info
+  
+  def _reset_environment_objects(self):
+    # Delete actors
+    clear_all_actors(self.world, [
+      'sensor.other.collision', 'sensor.camera.rgb',
+      # 'sensor.other.radar', 'sensor.lidar.ray_cast',
+      'vehicle.*', 'controller.ai.walker', 'walker.*'
+    ])
+
+    # Clear sensor objects
+    self.collision_detector.collision_detector = None
+    self.camera_sensors.camera_sensors = None
+    #self.lidar_sensor.lidar_sensor = None
+    #self.radar_sensor.radar_sensor = None
+
+  def close(self):
+    # Stop listening for data
+    self.collision_detector.stop()
+    self.camera_sensors.stop()
+
+    # Remove objects
+    self._reset_environment_objects()

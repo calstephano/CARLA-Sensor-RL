@@ -239,42 +239,52 @@ def display_to_rgb(display, obs_size):
   :param obs_size: rgb image size
   :return: rgb image uint8 matrix
   """
-  rgb = np.fliplr(np.rot90(display, 3))  # flip to regular view
-  rgb = skimage.transform.resize(rgb, (obs_size, obs_size))  # resize
+  rgb = np.fliplr(np.rot90(display, 3))                      # Flip to regular view
+  rgb = skimage.transform.resize(rgb, (obs_size, obs_size))  # Resize
   rgb = rgb * 255
   return rgb
 
 
 def rgb_to_display_surface(rgb, display_size):
-    """
-    Generate pygame surface given an RGB image uint8 matrix.
+  """
+  Generate pygame surface given an RGB image uint8 matrix.
 
-    :param rgb: RGB image uint8 matrix.
-    :param display_size: Display size.
-    :return: Pygame surface.
-    """
-    surface = pygame.Surface((display_size, display_size)).convert()
-    display = skimage.transform.resize(rgb, (display_size, display_size), preserve_range=True).astype(np.uint8)
-    display = np.flip(display, axis=1)
-    display = np.rot90(display, 1)
-    pygame.surfarray.blit_array(surface, display)
-    return surface
+  :param rgb: RGB image uint8 matrix.
+  :param display_size: Display size.
+  :return: Pygame surface.
+  """
+  surface = pygame.Surface((display_size, display_size)).convert()
+  display = skimage.transform.resize(rgb, (display_size, display_size), preserve_range=True).astype(np.uint8)
+  display = np.flip(display, axis=1)
+  display = np.rot90(display, 1)
+  pygame.surfarray.blit_array(surface, display)
+  return surface
 
 
 def grayscale_to_display_surface(gray, display_size):
-    """
-    Convert a grayscale image into a Pygame-compatible surface for rendering.
+  """
+  Convert a grayscale image into a Pygame-compatible surface for rendering.
 
-    Note:
-    - Grayscale is converted to RGB (3 channels) for visualization purposes only (Pygame requirement)
-    - This does not impact RL tasks, where grayscale is retained internally for efficiency.
+  Note:
+  - Grayscale is converted to RGB (3 channels) for visualization purposes only (Pygame requirement)
+  - This does not impact RL tasks, where grayscale is retained internally for efficiency.
 
-    :param gray: Grayscale image as a NumPy array (uint8 matrix).
-    :param display_size: Display size.
-    :return: Pygame surface.
-    """
-    # Convert grayscale to RGB (3 channels)
-    rgb = np.stack((gray, gray, gray), axis=2)
+  :param gray: Grayscale image as a NumPy array (uint8 matrix).
+  :param display_size: Display size.
+  :return: Pygame surface.
+  """
+  # Convert grayscale to RGB (3 channels)
+  rgb = np.stack((gray, gray, gray), axis=2)
 
-    # Render through rgb_to_display_surface function
-    return rgb_to_display_surface(rgb, display_size)
+  # Render through rgb_to_display_surface function
+  return rgb_to_display_surface(rgb, display_size)
+
+  
+def stop_sensors(self):
+  """Stop all sensors."""
+  if hasattr(self, 'sensors') and isinstance(self.sensors, list):
+    for sensor in self.sensors:
+      if hasattr(sensor, 'stop') and callable(sensor.stop):
+        print(f"Stopping sensor: {sensor}")
+        sensor.stop()
+  self.sensors = []
