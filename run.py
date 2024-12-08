@@ -80,9 +80,10 @@ def main():
   model.learn(total_timesteps=10000)
 
   # Test the model
-  test_model(model, env)
+  test_model(model, env, writer)
 
-  # Close the TensorBoard writer
+  # Close the environment and TensorBoard writer
+  env.close()
   writer.close()
 
 # Model specifications
@@ -102,16 +103,22 @@ def select_model(env, model_type, **kwargs):
   else:
     raise ValueError(f"Unsupported model type: {model_type}")
 
-def test_model(model, env, steps=100):
-  """Test the trained model."""
+def test_model(model, env, writer, steps=100, test_episode=0):
+  """Test the trained model and log performance to TensorBoard."""
   obs, info = env.reset()
+  print("Testing started.")
+  cumulative_reward = 0
   for step in range(steps):
     action, _states = model.predict(obs)
-    obs, rewards, terminated, truncated, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
+    cumulative_reward += reward
 
     if terminated or truncated:
-      print("Episode finished.")
-      break
+        print(f"Episode {test_episode} finished after {step + 1} steps with reward {cumulative_reward}.")
+        writer.add_scalar("Test/Cumulative Reward", cumulative_reward, test_episode)
+        writer.add_scalar("Test/Episode Length", step + 1, test_episode)
+        break
+  print("Testing finished.")
 
 if __name__ == '__main__':
   main()
