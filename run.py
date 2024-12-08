@@ -5,7 +5,7 @@
 
 import os
 import gymnasium as gym
-import gym_carla
+from gymnasium.wrappers import Monitor
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3 import DQN, PPO, SAC
 
@@ -71,6 +71,13 @@ def main():
 
   # Initialize the environment
   env = gym.make('carla-v0', params=params, writer=writer)
+
+  # Wrap the environment with the Monitor wrapper
+  log_dir = './playback'
+  os.makedirs(log_dir, exist_ok=True)
+
+  # Add the Monitor wrapper
+  env = Monitor(env, log_dir, video_callable=lambda episode_id: True, force=True)
 
   # Initialize the model
   model = select_model(env, model_type, verbose=1, tensorboard_log=base_log_dir)
