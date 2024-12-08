@@ -28,7 +28,6 @@ def main():
     'max_time_episode': 1000,                   # Maximum timesteps per episode
     'max_waypt': 12,                            # Maximum number of waypoints
     'obs_range': 32,                            # Observation range (meter)
-    'lidar_bin': 0.125,                         # Bin size of LIDAR sensor (meter)
     'd_behind': 12,                             # Distance behind the ego vehicle (meter)
     'out_lane_thres': 2.0,                      # Threshold for out of lane
     'desired_speed': 8,                         # Desired speed (m/s)
@@ -115,8 +114,8 @@ def test_model(model, env, writer, steps=100, test_episode=0):
 
     if terminated or truncated:
         print(f"Episode {test_episode} finished after {step + 1} steps with reward {cumulative_reward}.")
-        writer.add_scalar("Test/Cumulative Reward", cumulative_reward, test_episode)
-        writer.add_scalar("Test/Episode Length", step + 1, test_episode)
+        writer.add_scalar("test/cumulative reward", cumulative_reward, test_episode)
+        writer.add_scalar("test/episode Length", step + 1, test_episode)
         break
   print("Testing finished.")
 
