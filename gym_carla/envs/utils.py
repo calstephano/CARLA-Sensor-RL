@@ -4,7 +4,7 @@
 #
 # This file is modified from <https://github.com/carla-simulator/carla>:
 # Copyright (c) 2018 Intel Labs.
-# Authors: German Ros (german.ros@intel.com)
+# authors: German Ros (german.ros@intel.com)
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
@@ -15,7 +15,7 @@ import carla
 import pygame
 from matplotlib.path import Path
 import skimage
-
+from gymnasium.utils import seeding
 
 def get_speed(vehicle):
   """
@@ -231,60 +231,100 @@ def set_carla_transform(pose):
   return transform
 
 
-def display_to_rgb(display, obs_size):
+def get_actor_polygons(world, filt):
   """
-  Transform image grabbed from pygame display to an rgb image uint8 matrix
+  Get the bounding box polygon of actors.
 
-  :param display: pygame display input
-  :param obs_size: rgb image size
-  :return: rgb image uint8 matrix
+  Args:
+    world (carla.World): The CARLA simulation world.
+    filt (str): The filter indicating what type of actors to look at.
+
+  Returns:
+    dict: A dictionary containing the bounding boxes of specific actors.
   """
-  rgb = np.fliplr(np.rot90(display, 3))                      # Flip to regular view
-  rgb = skimage.transform.resize(rgb, (obs_size, obs_size))  # Resize
-  rgb = rgb * 255
-  return rgb
+  actor_poly_dict = {}
+  flagged_actors = set()  # Keep track of actors with invalid polygons
 
+  for actor in world.get_actors().filter(filt):
+    try:
+      # Get x, y, and yaw of the actor
+      trans = actor.get_transform()
+      x = trans.location.x
+      y = trans.location.y
+      yaw = trans.rotation.yaw / 180 * np.pi
 
-def rgb_to_display_surface(rgb, display_size):
-  """
-  Generate pygame surface given an RGB image uint8 matrix.
+      # Get length and width
+      bb = actor.bounding_box
+      l = bb.extent.x
+      w = bb.extent.y
 
-  :param rgb: RGB image uint8 matrix.
-  :param display_size: Display size.
-  :return: Pygame surface.
-  """
-  surface = pygame.Surface((display_size, display_size)).convert()
-  display = skimage.transform.resize(rgb, (display_size, display_size), preserve_range=True).astype(np.uint8)
-  display = np.flip(display, axis=1)
-  display = np.rot90(display, 1)
-  pygame.surfarray.blit_array(surface, display)
-  return surface
+      # Get bounding box polygon in the actor's local coordinate
+      poly_local = np.array([[l, w], [l, -w], [-l, -w], [-l, w]]).transpose()
 
+      # Get rotation matrix to transform to global coordinate
+      R = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+      
+      # Get global bounding box polygon
+      poly = np.matmul(R, poly_local).transpose() + np.array([[x, y]] * 4)
 
-def grayscale_to_display_surface(gray, display_size):
-  """
-  Convert a grayscale image into a Pygame-compatible surface for rendering.
-
-  Note:
-  - Grayscale is converted to RGB (3 channels) for visualization purposes only (Pygame requirement)
-  - This does not impact RL tasks, where grayscale is retained internally for efficiency.
-
-  :param gray: Grayscale image as a NumPy array (uint8 matrix).
-  :param display_size: Display size.
-  :return: Pygame surface.
-  """
-  # Convert grayscale to RGB (3 channels)
-  rgb = np.stack((gray, gray, gray), axis=2)
-
-  # Render through rgb_to_display_surface function
-  return rgb_to_display_surface(rgb, display_size)
-
+      # Check for NaN values and add valid polygons to the dictionary
+      if not np.isnan(poly).any():
+        actor_poly_dict[actor.id] = poly
+      else:
+        if actor.id not in flagged_actors:
+          print(f"[DEBUG] Invalid polygon detected for actor {actor.id} ({actor.type_id}). Contains NaN values.")
+          flagged_actors.add(actor.id)
+    except Exception as e:
+      print(f"Error processing actor {actor.id}: {e}")
   
-def stop_sensors(self):
-  """Stop all sensors."""
-  if hasattr(self, 'sensors') and isinstance(self.sensors, list):
-    for sensor in self.sensors:
-      if hasattr(sensor, 'stop') and callable(sensor.stop):
-        print(f"Stopping sensor: {sensor}")
-        sensor.stop()
-  self.sensors = []
+  return actor_poly_dict
+
+
+def clear_all_actors(world, actor_filters):
+  """
+  Clear all actors matching specific filters from the CARLA world.
+
+  Args:
+    world (carla.World): The CARLA world object.
+    actor_filters (list of str): List of filters for actor types to remove.
+      Examples: ['vehicle.*', 'walker.*', 'sensor.*']
+  """
+  for actor_filter in actor_filters:
+    for actor in world.get_actors().filter(actor_filter):
+      if actor.is_alive:
+        if actor.type_id == 'controller.ai.walker':
+          # Stop AI controllers before destruction
+          actor.stop()
+        try:
+          actor.destroy()
+        except Exception as e:
+          print(f"Error destroying actor {actor.type_id}, ID: {actor.id}: {e}")
+
+
+def set_synchronous_mode(world, synchronous=True, fixed_delta_seconds=None):
+  """
+  Set whether to use the synchronous mode in the CARLA world.
+
+  Args:
+    world (carla.World): The CARLA simulation world.
+    synchronous (bool): Whether to enable synchronous mode (default: True).
+    fixed_delta_seconds (float, optional): Fixed time step for the simulation (default: None).
+  """
+  settings = world.get_settings()
+  settings.synchronous_mode = synchronous
+  if fixed_delta_seconds is not None:
+    settings.fixed_delta_seconds = fixed_delta_seconds
+  world.apply_settings(settings)
+
+
+def set_seed(env, seed=None):
+    """
+    Sets the random seed for the environment and returns the seed.
+    
+    :param env: The environment instance to set the seed for.
+    :param seed: The seed value (if None, a random seed is generated).
+    :return: The set seed value.
+    """
+    np_random, seed = seeding.np_random(seed)
+    env.np_random = np_random
+    return seed

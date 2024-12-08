@@ -2,7 +2,7 @@
 
 # Copyright (c) 2019: Jianyu Chen (jianyuchen@berkeley.edu).
 #
-# This file is modified from <https://github.com/carla-simulator/carla>:
+# This file is from <https://github.com/carla-simulator/carla>:
 # Copyright (c) 2018 Intel Labs.
 # authors: German Ros (german.ros@intel.com)
 #
@@ -56,7 +56,7 @@ COLOR_WHITE = pygame.Color(255, 255, 255)
 COLOR_BLACK = pygame.Color(0, 0, 0)
 
 
-class Util(object):
+class RenderUtils(object):
 
   @staticmethod
   def blits(destination_surface, source_surfaces, rect=None, blend_mode=0):
@@ -579,7 +579,7 @@ class BirdeyeRender(object):
                     self.hero_surface.get_height())
       self.clip_surfaces(clipping_rect)
 
-      Util.blits(self.result_surface, surfaces)
+      RenderUtils.blits(self.result_surface, surfaces)
 
       # Set background black
       self.hero_surface.fill(COLOR_BLACK)
@@ -601,7 +601,7 @@ class BirdeyeRender(object):
       clipping_rect = pygame.Rect(-translation_offset[0] - center_offset[0], -translation_offset[1],
                     self.params['screen_size'][0], self.params['screen_size'][1])
       self.clip_surfaces(clipping_rect)
-      Util.blits(self.result_surface, surfaces)
+      RenderUtils.blits(self.result_surface, surfaces)
 
       display.blit(self.result_surface, (translation_offset[0] + center_offset[0],
                          translation_offset[1]))

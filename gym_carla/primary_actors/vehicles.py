@@ -16,50 +16,51 @@ def get_vehicle_spawn_points(world):
   return list(world.get_map().get_spawn_points())
 
 
-def try_spawn_ego_vehicle_at(world, ego_bp, vehicle_polygons, transform):
+def try_spawn_ego_vehicle_at(world, transform, vehicle_polygons, ego_vehicle_filter):
   """
   Try to spawn the ego vehicle at a specific transform.
 
   Args:
     world (carla.World): The CARLA simulation world.
-    ego_bp (carla.ActorBlueprint): The blueprint of the ego vehicle.
     vehicle_polygons (list): List of surrounding vehicle polygons to check for overlap.
     transform (carla.Transform): The transform (location and rotation) to spawn the vehicle.
 
   Returns:
     carla.Vehicle or None: The spawned ego vehicle, or None if spawning fails.
   """
+  blueprint = create_vehicle_blueprint(world, ego_vehicle_filter, color='49,8,8')
+
   # Check if ego position overlaps with surrounding vehicles
   for poly in vehicle_polygons[-1].values():
     poly_center = np.mean(poly, axis=0)
     ego_center = np.array([transform.location.x, transform.location.y])
+
+    # Overlap detected, spawn failed
     if np.linalg.norm(poly_center - ego_center) < 8:
-        return None  # Overlap detected, spawn failed
+        return None  
 
-  # Try to spawn the ego vehicle
-  vehicle = world.try_spawn_actor(ego_bp, transform)
-  return vehicle  # Return the vehicle if successfully spawned, or None
+  # Spawn successful
+  vehicle = world.try_spawn_actor(blueprint, transform)
+  return vehicle
 
 
-
-def spawn_ego_vehicle(world, vehicle_spawn_points, ego_bp, vehicle_polygons, max_ego_spawn_times):
+def spawn_ego_vehicle(world, vehicle_spawn_points, vehicle_polygons, max_ego_spawn_times, ego_vehicle_filter='vehicle.lincoln*'):
   """
   Spawn the ego vehicle at a random location.
-  
+
   Args:
     world (carla.World): The CARLA simulation world.
     vehicle_spawn_points (list): List of spawn points for vehicles.
-    ego_bp (carla.ActorBlueprint): The blueprint of the ego vehicle.
     vehicle_polygons (list): List of surrounding vehicle polygons to check for overlap.
     max_ego_spawn_times (int): Maximum number of attempts to spawn the ego vehicle.
-  
+
   Returns:
     carla.Vehicle or None: The spawned ego vehicle, or None if spawning fails.
   """
   ego_spawn_times = 0
   while ego_spawn_times <= max_ego_spawn_times:
     transform = random.choice(vehicle_spawn_points)
-    vehicle = try_spawn_ego_vehicle_at(world, ego_bp, vehicle_polygons, transform)
+    vehicle = try_spawn_ego_vehicle_at(world, transform, vehicle_polygons, ego_vehicle_filter)
     if vehicle:
       print(f"Ego vehicle spawned successfully at {transform.location}.")
       return vehicle  # Return the spawned ego vehicle instance

@@ -1,8 +1,3 @@
-# This file is modified from <https://github.com/cjy1992/gym-carla.git>:
-# Copyright (c) 2019: Jianyu Chen (jianyuchen@berkeley.edu)
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
 from __future__ import division
 
 import sys
@@ -13,23 +8,18 @@ import random
 import time
 import threading
 
-from datetime import datetime
-from matplotlib import cm
-from skimage.transform import resize
 from PIL import Image
 
 import gymnasium as gym
 from gymnasium import spaces
-from gymnasium.utils import seeding
 import carla
 
 # Local module imports
-from gym_carla.envs.render import BirdeyeRender
-from gym_carla.envs.route_planner import RoutePlanner
-from gym_carla.envs.misc import *
-from gym_carla.envs.actor_utils import *
+from gym_carla.envs.route_planner import *
+from gym_carla.envs.utils import *
+from gym_carla.display import *
 from gym_carla.primary_actors import *
-from gym_carla.sensors import CollisionDetector, CameraSensors, LIDARSensor, RadarSensor
+from gym_carla.sensors import *
 
 class CarlaEnv(gym.Env):
   """An OpenAI gym wrapper for CARLA simulator."""
@@ -45,13 +35,13 @@ class CarlaEnv(gym.Env):
     self.max_time_episode = params['max_time_episode']
     self.max_waypt = params['max_waypt']
     self.obs_range = params['obs_range']
-    self.lidar_bin = params['lidar_bin']
     self.d_behind = params['d_behind']
-    self.obs_size = int(self.obs_range/self.lidar_bin)
+    self.obs_size = int(self.obs_range/0.125)
     self.out_lane_thres = params['out_lane_thres']
     self.desired_speed = params['desired_speed']
     self.max_ego_spawn_times = params['max_ego_spawn_times']
     self.display_route = params['display_route']
+    self.ego_vehicle_filter = params['ego_vehicle_filter']
     self.writer = writer
 
     # Action space
@@ -79,11 +69,11 @@ class CarlaEnv(gym.Env):
     })
 
     # Connect to CARLA server and get world object
-    print('Connecting to CARLA server...')
+    print("\nConnecting to CARLA server...")
     client = carla.Client('localhost', params['port'])
     client.set_timeout(4000.0)
     self.world = client.load_world(params['town'])
-    print('CARLA server connected!')
+    print("CARLA server connected!")
 
     # Set weather
     self.world.set_weather(carla.WeatherParameters.ClearNoon)
@@ -91,91 +81,83 @@ class CarlaEnv(gym.Env):
     # Get spawn points
     self.vehicle_spawn_points = get_vehicle_spawn_points(self.world)
     print(f"Retrieved {len(self.vehicle_spawn_points)} vehicle spawn points.")
-
     self.walker_spawn_points = generate_walker_spawn_points(self.world, self.number_of_walkers)
     print(f"Generated {len(self.walker_spawn_points)} valid walker spawn points out of {self.number_of_walkers} requested.")
-
-    # Create the ego vehicle blueprint
-    self.ego_bp = create_vehicle_blueprint(self.world, params['ego_vehicle_filter'], color='49,8,8')
 
     # Initialize sensors
     self.collision_detector = CollisionDetector(self.world)
     self.camera_sensors = CameraSensors(self.world, self.obs_size, self.display_size)
-    # self.lidar_sensor = LIDARSensor(self.world)
-    # self.radar_sensor = RadarSensor(self.world)
-
-    # Set fixed simulation step for synchronous mode
-    self.settings = self.world.get_settings()
-    self.settings.fixed_delta_seconds = self.dt
 
     # Record the time of total steps and resetting steps
     self.reset_step = 0
     self.total_step = 0
 
-    # Initialize the renderer
-    self._init_renderer()
+    # Initialize Pygame display
+    self.pygame_manager = PygameManager(self.world, self.display_size, self.obs_range, self.d_behind, self.display_route)
+    self.pygame_manager.camera_sensors = self.camera_sensors
 
   def reset(self, seed = None, options = None):
     # Disable sync mode
-    self._set_synchronous_mode(False)
+    set_synchronous_mode(self.world, False)
 
     # Reset environment objects
     self._reset_environment_objects()
 
-    # Spawn surrounding vehicles
+    # Spawn surrounding vehicles and walkers
     random.shuffle(self.vehicle_spawn_points)
     vehicles_spawned = spawn_random_vehicles(self.world, self.vehicle_spawn_points, self.number_of_vehicles)
-
     walkers_spawned = spawn_walkers(self.world, self.walker_spawn_points, self.number_of_walkers)
     print(f"Successfully spawned {walkers_spawned} out of {self.number_of_walkers} walkers.")
 
-    # Get vehicle polygon list
+    # Get polygon lists of surronding vehicles and walkers
     self.vehicle_polygons = []
     vehicle_poly_dict = get_actor_polygons(self.world, 'vehicle.*')
     self.vehicle_polygons.append(vehicle_poly_dict)
-
-    # Get walker polygon list
     self.walker_polygons = []
     walker_poly_dict = get_actor_polygons(self.world, 'walker.*')
     self.walker_polygons.append(walker_poly_dict)
 
     # Spawn the ego vehicle
     ego_vehicle = spawn_ego_vehicle(
-      self.world, self.vehicle_spawn_points, self.ego_bp,
-      self.vehicle_polygons, self.max_ego_spawn_times
+      self.world, self.vehicle_spawn_points, self.vehicle_polygons, 
+      self.max_ego_spawn_times, self.ego_vehicle_filter, 
     )
-
     if not ego_vehicle:
-        print("Failed to spawn ego vehicle. Resetting environment.")
-        return self.reset()
-
+      print("Failed to spawn ego vehicle. Resetting environment.")
+      return self.reset()
     self.ego = ego_vehicle
 
     # Spawn and attach sensors
     self.collision_detector.spawn_and_attach(self.ego)
     self.collision_detector.clear_collision_history()
     self.camera_sensors.spawn_and_attach(self.ego)
-    # self.lidar_sensor.spawn_and_attach(self.ego)
-    # self.radar_sensor.spawn_and_attach(self.ego)
 
     # Update timesteps
     self.time_step=0
     self.reset_step+=1
 
     # Enable sync mode
-    self.settings.synchronous_mode = True
-    self.world.apply_settings(self.settings)
+    set_synchronous_mode(self.world, True, fixed_delta_seconds=self.dt)
 
     self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
     self.waypoints, _, self.vehicle_front = self.routeplanner.run_step()
 
+    # Set ego information for birdeye render
+    self.pygame_manager.set_hero(self.ego, self.ego.id)
+
     info = self._get_info()
 
-    # Set ego information for render
-    self.birdeye_render.set_hero(self.ego, self.ego.id)
     return self._get_obs(), info
 
   def step(self, action):
+    # Pass updated polygons and waypoints to PygameManager for rendering
+    self.pygame_manager.vehicle_polygons = self.vehicle_polygons
+    self.pygame_manager.walker_polygons = self.walker_polygons
+    self.pygame_manager.waypoints = self.waypoints
+
+    # Pass updated camera
+    self.pygame_manager.update_display()
+
     # Calculate acceleration and steering
     if self.discrete:
       acc = self.discrete_act[0][action//self.n_steer]
@@ -199,14 +181,12 @@ class CarlaEnv(gym.Env):
     # Tick the world
     self.world.tick()
 
-    # Display
-    self._visualize()
-
     # Append actors polygon list
     vehicle_poly_dict = get_actor_polygons(self.world, 'vehicle.*')
     self.vehicle_polygons.append(vehicle_poly_dict)
     while len(self.vehicle_polygons) > self.max_past_step:
       self.vehicle_polygons.pop(0)
+
     walker_poly_dict = get_actor_polygons(self.world, 'walker.*')
     self.walker_polygons.append(walker_poly_dict)
     while len(self.walker_polygons) > self.max_past_step:
@@ -219,7 +199,7 @@ class CarlaEnv(gym.Env):
     total_reward, reward_components = self._get_reward(self.total_step)
     if self.writer:
         for key, value in reward_components.items():
-            self.writer.add_scalar(f"Reward/{key}", value, self.total_step)
+            self.writer.add_scalar(f"rewards/{key}", value, self.total_step)
 
     # Check termination conditions
     terminated = self._terminal()
@@ -236,61 +216,6 @@ class CarlaEnv(gym.Env):
     info["reward_components"] = reward_components  # Include reward components for debugging
 
     return (self._get_obs(), total_reward, self._terminal(), truncated, info)
-
-  def seed(self, seed=None):
-    self.np_random, seed = seeding.np_random(seed)
-    return [seed]
-
-  def _init_renderer(self):
-    """Initialize the birdeye view renderer.
-    """
-    pygame.init()
-    self.display = pygame.display.set_mode(
-    (self.display_size * 6, self.display_size),
-    pygame.HWSURFACE | pygame.DOUBLEBUF)
-
-    pixels_per_meter = self.display_size / self.obs_range
-    pixels_ahead_vehicle = (self.obs_range/2 - self.d_behind) * pixels_per_meter
-    birdeye_params = {
-      'screen_size': [self.display_size, self.display_size],
-      'pixels_per_meter': pixels_per_meter,
-      'pixels_ahead_vehicle': pixels_ahead_vehicle
-    }
-    self.birdeye_render = BirdeyeRender(self.world, birdeye_params)
-
-  def _get_birdeye(self):
-      """Generate bird's-eye view rendering."""
-      # Set up polygons and waypoints for rendering
-      self.birdeye_render.vehicle_polygons = self.vehicle_polygons
-      self.birdeye_render.walker_polygons = self.walker_polygons
-      self.birdeye_render.waypoints = self.waypoints
-
-      # Birdeye view with roadmap and actors
-      birdeye_render_types = ['roadmap', 'actors']
-      if self.display_route:
-          birdeye_render_types.append('waypoints')
-      self.birdeye_render.render(self.display, birdeye_render_types)
-      birdeye = pygame.surfarray.array3d(self.display)
-      birdeye = birdeye[0:self.display_size, :, :]
-      birdeye = display_to_rgb(birdeye, self.obs_size)
-
-      return birdeye
-
-  def _visualize(self):
-      # Render bird's-eye view
-      birdeye = self._get_birdeye()
-      birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
-      self.display.blit(birdeye_surface, (0, 0))
-
-      # Render camera view
-      self.camera_sensors.display_camera_img(self.display)
-      pygame.display.flip()
-
-  def _set_synchronous_mode(self, synchronous = True):
-    """Set whether to use the synchronous mode.
-    """
-    self.settings.synchronous_mode = synchronous
-    self.world.apply_settings(self.settings)
 
   def _get_obs(self):
     """Get the observations."""
@@ -331,7 +256,7 @@ class CarlaEnv(gym.Env):
     lane_width = ego_waypoint.lane_width if ego_waypoint else 2.0
 
     # Reward components
-    r_lane = -abs(lateral_dis / lane_width)  # Penalize deviation from lane center
+    r_lane = -abs(lateral_dis / lane_width)    # Penalize deviation from lane center
     r_heading = -abs(delta_yaw / (np.pi / 4))  # Penalize large heading errors
 
     # Speed reward
@@ -373,7 +298,6 @@ class CarlaEnv(gym.Env):
             # Penalize for making progress while off-lane
             progress_reward = -5
 
-
     # Combine rewards
     total_reward = (
         10 * r_lane +
@@ -400,7 +324,7 @@ class CarlaEnv(gym.Env):
             "total_reward": total_reward
         }
         for key, value in reward_components.items():
-            self.writer.add_scalar(f"Reward/{key}", value, self.total_step)
+            self.writer.add_scalar(f"rewards/{key}", value, self.total_step)
 
     return total_reward, reward_components
 
@@ -437,15 +361,12 @@ class CarlaEnv(gym.Env):
     # Delete actors
     clear_all_actors(self.world, [
       'sensor.other.collision', 'sensor.camera.rgb',
-      # 'sensor.other.radar', 'sensor.lidar.ray_cast',
       'vehicle.*', 'controller.ai.walker', 'walker.*'
     ])
 
     # Clear sensor objects
     self.collision_detector.collision_detector = None
     self.camera_sensors.camera_sensors = None
-    #self.lidar_sensor.lidar_sensor = None
-    #self.radar_sensor.radar_sensor = None
 
   def close(self):
     # Stop listening for data
