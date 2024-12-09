@@ -9,6 +9,7 @@ import carla
 import gym_carla
 from torch.utils.tensorboard import SummaryWriter
 from stable_baselines3 import DQN, PPO, SAC
+from stable_baselines3.common.evaluation import evaluate_policy
 
 def main():
   # Define environment parameters
@@ -80,7 +81,7 @@ def main():
   model.learn(total_timesteps=10000)
 
   # Test the model
-  test_model(model, env, writer)
+  evaluate_model(model, env, writer)
 
   # Close the environment and TensorBoard writer
   env.close()
@@ -103,22 +104,16 @@ def select_model(env, model_type, **kwargs):
   else:
     raise ValueError(f"Unsupported model type: {model_type}")
 
-def test_model(model, env, writer, steps=100, test_episode=0):
-  """Test the trained model and log performance to TensorBoard."""
-  obs, info = env.reset()
+def evaluate_model(model, env, writer, steps=1000):
+  """Test the trained model using evaluate_policy and log performance to TensorBoard."""
   print("Testing started.")
-  cumulative_reward = 0
-  for step in range(steps):
-    action, _states = model.predict(obs)
-    obs, reward, terminated, truncated, info = env.step(action)
-    cumulative_reward += reward
-
-    if terminated or truncated:
-      print(f"Episode {test_episode} finished after {step + 1} steps with reward {cumulative_reward}.")
-      writer.add_scalar("test/cumulative reward", cumulative_reward, test_episode)
-      writer.add_scalar("test/episode length", step + 1, test_episode)
-      break
-  print("Testing finished.")
+  # Evaluate the policy using evaluate_policy from SB3
+  mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
+  
+  # Log the results to TensorBoard
+  writer.add_scalar("test/mean_reward", mean_reward)
+  writer.add_scalar("test/std_reward", std_reward)
+  print(f"Testing finished. Mean reward: {mean_reward} +/- {std_reward}")
 
 if __name__ == '__main__':
   main()

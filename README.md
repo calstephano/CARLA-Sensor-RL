@@ -7,9 +7,10 @@ This repository features a custom CARLA Gymnasium environment, built upon the fo
 ## How to Train
 
 ## Running TensorBoard
-TensorBoard is a visualization tool used to monitor training metrics, such as rewards and losses. To launch TensorBoard, run the following command in the terminal:
+TensorBoard is a visualization tool used to monitor training metrics, such as rewards and losses. To launch TensorBoard, open a new terminal and run the following commands from the main directory:
 
 ```
+conda activate carla
 tensorboard --logdir ./tensorboard --port 6006
 ```
 
