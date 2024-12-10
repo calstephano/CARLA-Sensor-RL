@@ -15,10 +15,10 @@ from gymnasium import spaces
 import carla
 
 # Local module imports
-from gym_carla.envs.route_planner import *
-from gym_carla.envs.utils import *
+from gym_carla.env.route_planner import *
+from gym_carla.env.env_utils import *
 from gym_carla.display import *
-from gym_carla.primary_actors import *
+from gym_carla.dynamic_actors import *
 from gym_carla.sensors import *
 
 class CarlaEnv(gym.Env):
